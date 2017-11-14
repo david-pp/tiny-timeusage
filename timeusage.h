@@ -41,26 +41,25 @@ struct BlockInfo {
 struct BlockTimeStat : public BlockInfo {
     uint64_t calls = 0;
     uint64_t total_ms = 0;
-    float percent = 0;
 
     static std::string dumpHeaderAsString(const std::string sperator = "\t") {
         std::ostringstream oss;
-        oss << "%" << sperator
-            << "ms" << sperator
+        oss << "ms" << sperator
             << "calls" << sperator
             << "ms/call" << sperator
             << "name" << sperator
+            << "function" << sperator
             << "file:line";
         return oss.str();
     }
 
     std::string dumpAsString(const std::string sperator = "\t") {
         std::ostringstream oss;
-        oss << percent << sperator
-            << total_ms << sperator
+        oss << total_ms << sperator
             << calls << sperator
             << (float) total_ms / calls << sperator
             << name << sperator
+            << function << sperator
             << filename << ":" << line;
 
         return oss.str();
@@ -84,14 +83,10 @@ public:
     void called(const BlockInfo &block, uint64_t ms) {
         std::lock_guard<std::mutex> lock_(mutex_);
 
-        total_ms_ += ms;
-
         auto it = blocks_.find(block.name);
         if (it != blocks_.end()) {
             it->second->calls++;
             it->second->total_ms += ms;
-            if (total_ms_)
-                it->second->percent = float(it->second->total_ms) / float(total_ms_) * 100;
 
         } else {
             BlockTimeStatPtr stat = std::make_shared<BlockTimeStat>();
@@ -102,8 +97,6 @@ public:
                 stat->line = block.line;
                 stat->calls++;
                 stat->total_ms += ms;
-                if (total_ms_)
-                    stat->percent = float(stat->total_ms) / float(total_ms_) * 100;
 
                 blocks_.insert(std::make_pair(stat->name, stat));
             }
@@ -138,7 +131,6 @@ public:
 
     void reset() {
         std::lock_guard<std::mutex> lock_(mutex_);
-        total_ms_ = 0;
         blocks_.clear();
     }
 
@@ -149,7 +141,6 @@ public:
 private:
     volatile bool open_ = true;
     std::mutex mutex_;
-    uint64_t total_ms_ = 0;
     std::unordered_map<std::string, BlockTimeStatPtr> blocks_;
 };
 
